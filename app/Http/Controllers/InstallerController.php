@@ -268,7 +268,11 @@ class InstallerController extends Controller
 
     private function appInstalled()
     {
-        Artisan::call('storage:link');
+        try {
+            Artisan::call('storage:link');
+        } catch (\Throwable $e) {
+            // Storage link already exists or symlink function disabled
+        }
         Artisan::call('migrate --force');
 
         overWriteEnvFile('APP_ENV', 'production');
