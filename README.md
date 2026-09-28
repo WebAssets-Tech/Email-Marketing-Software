@@ -313,31 +313,161 @@ During deployment on aaPanel and Linux servers, several real-world edge cases we
 
 ---
 
+### Issue 8: Postfix Spool Directories Missing (`fatal: open lock file pid/inet.submission`)
+- **Symptom:**
+  ```text
+  postfix/master: fatal: open lock file pid/inet.submission: No such file or directory
+  ```
+  Connecting to SMTP ports `587` or `465` yields `Connection timed out` or `SSL: Handshake timed out`.
+- **Cause:** On Ubuntu 24.04 / fresh Linux installations, Postfix's `/var/spool/postfix/{pid,public,private,maildrop...}` directories were missing or lacked correct permissions, preventing the Postfix master daemon from binding to submission ports.
+- **Solution:**
+  Recreate the Postfix spool hierarchy and apply standard ownership & permissions:
+  ```bash
+  mkdir -p /var/spool/postfix/{pid,public,private,maildrop,incoming,active,bounce,defer,deferred,flush,saved,corrupt,trace}
+  chown root:postfix /var/spool/postfix /var/spool/postfix/public /var/spool/postfix/maildrop
+  chown -R postfix:postfix /var/spool/postfix/pid /var/spool/postfix/incoming /var/spool/postfix/active /var/spool/postfix/bounce /var/spool/postfix/defer /var/spool/postfix/deferred /var/spool/postfix/flush /var/spool/postfix/saved /var/spool/postfix/corrupt /var/spool/postfix/trace
+  chmod 755 /var/spool/postfix /var/spool/postfix/pid
+  chmod 710 /var/spool/postfix/public /var/spool/postfix/maildrop
+  chmod 700 /var/spool/postfix/private /var/spool/postfix/incoming /var/spool/postfix/active /var/spool/postfix/bounce /var/spool/postfix/defer /var/spool/postfix/deferred /var/spool/postfix/flush /var/spool/postfix/saved /var/spool/postfix/corrupt /var/spool/postfix/trace
+  systemctl restart postfix@-
+  ```
+
+---
+
+### Issue 9: Dovecot LMTP Socket Missing (`delivery temporarily suspended: connect to mail[private/dovecot-lmtp]`)
+- **Symptom:**
+  ```text
+  delivery temporarily suspended: connect to mail[private/dovecot-lmtp]: No such file or directory
+  ```
+  Inbound mail or local deliveries accumulate in the Postfix deferred queue (`postqueue -p`).
+- **Cause:** Postfix delegates mailbox delivery to Dovecot via the LMTP protocol using a UNIX domain socket at `/var/spool/postfix/private/dovecot-lmtp`. The socket was missing because `/var/spool/postfix/private` had not been initialized or Dovecot's LMTP service listener was not properly registered.
+- **Solution:**
+  1. Ensure the directory exists with correct permissions:
+     ```bash
+     mkdir -p /var/spool/postfix/private
+     chown postfix:postfix /var/spool/postfix/private
+     chmod 700 /var/spool/postfix/private
+     ```
+  2. In `/etc/dovecot/conf.d/10-master.conf`, configure the LMTP unix listener:
+     ```dovecot
+     service lmtp {
+       unix_listener /var/spool/postfix/private/dovecot-lmtp {
+         mode = 0600
+         user = postfix
+         group = postfix
+       }
+     }
+     ```
+  3. Restart both services:
+     ```bash
+     systemctl restart dovecot
+     systemctl restart postfix@-
+     ```
+
+---
+
+### Issue 10: SSL Certificate Verification Failed on STARTTLS
+- **Symptom:**
+  ```text
+  Unable to connect with STARTTLS: stream_socket_enable_crypto(): SSL operation failed with code 1.
+  OpenSSL Error messages: error:0A000086:SSL routines::certificate verify failed
+  ```
+- **Cause:** When connecting to a self-hosted mail server over port `587` with STARTTLS or `465` with SSL, PHP 8's OpenSSL engine verifies the SSL certificate against public Certificate Authorities. If the mail server uses a self-signed certificate, an internal hostname, or Dovecot's default self-signed cert (`/etc/pki/dovecot/certs/dovecot.pem`), OpenSSL rejects the handshake.
+- **Solution:**
+  In `app/Services/Mailer/MultiMailer.php` and `config/mail.php`, configure custom SSL stream options to allow self-signed certificates and bypass hostname mismatch:
+  ```php
+  'stream' => [
+      'ssl' => [
+          'verify_peer' => false,
+          'verify_peer_name' => false,
+          'allow_self_signed' => true,
+      ],
+  ],
+  ```
+  This allows Laravel's mailer and Symfony Mailer transport to establish secure STARTTLS sessions smoothly.
+
+---
+
+### Issue 11: Mollie Payment Gateway Crash on Unconfigured API Key
+- **Symptom:**
+  ```text
+  TypeError: Mollie\Api\MollieApiClient::setApiKey(): Argument #1 ($apiKey) must be of type string, null given
+  in /vendor/mollie/mollie-api-php/src/MollieApiClient.php
+  called in /app/Services/Payment/Mollie.php
+  ```
+  Visiting payment pages or viewing subscription tiers resulted in an HTTP 500 error when `MOLLIE_KEY` in `.env` (or database) was empty.
+- **Cause:** Mollie SDK's `setApiKey()` method has strict PHP 8 typing requiring a non-empty `string`.
+- **Solution:**
+  Added defensive verification in [app/Services/Payment/Mollie.php](file:///app/Services/Payment/Mollie.php):
+  ```php
+  if (empty($apiKey)) {
+      return;
+  }
+  ```
+
+---
+
+### Issue 12: Cron Email Flooding Postfix Mail Queue (Overloaded Server)
+- **Symptom:**
+  ```text
+  2604 Kbytes in 2604 Requests.
+  root@webassets.tech: delivery temporarily suspended
+  ```
+  High CPU usage and thousands of deferred emails filling `/var/spool/postfix/deferred`.
+- **Cause:** By default, Linux cron daemons (`cron` / `crond`) send standard output and error messages from scheduled cron jobs as emails to the local system user (`root` or `root@domain`). Crons scheduled every minute without output redirection generated a flood of undeliverable local emails.
+- **Solution:**
+  1. Always append `>> /dev/null 2>&1` to all cron job commands to discard console output.
+  2. Alias `root` emails to `/dev/null` in `/etc/aliases`:
+     ```text
+     root: /dev/null
+     ```
+     Run `newaliases` to apply.
+  3. Purge the backed-up mail queue:
+     ```bash
+     postsuper -d ALL
+     ```
+
+---
+
 ## 8. Post-Installation Operations & Cron Jobs
 
-### 1. Set Up Laravel Scheduler Cron
-Maildoll depends on Laravel's task scheduler to send scheduled email campaigns, process queue jobs, and manage subscription expirations.
+Maildoll relies on scheduled tasks to handle campaign batching, email dispatching, SMS sending, queue retries, and monthly reports.
 
-In aaPanel:
-1. Go to **Cron** on the left menu.
-2. Select **Type of Task:** `Shell Script`.
-3. **Name of Task:** `Maildoll Scheduler`.
-4. **Period:** `N Minutes` > `1 Minute` (i.e. `* * * * *`).
-5. **Script content:**
-   ```bash
-   php /www/wwwroot/mailer.webassets.tech/artisan schedule:run >> /dev/null 2>&1
-   ```
-6. Click **Add Task**.
+### Recommended aaPanel Cron Configuration
 
-### 2. Configure Queue Worker (Supervisor / aaPanel Daemon)
-For large-scale email campaigns, run queue workers via aaPanel **Supervisor Manager**:
-- **Name:** `maildoll-worker`
-- **Run User:** `www`
-- **Command:** `php /www/wwwroot/mailer.webassets.tech/artisan queue:work --sleep=3 --tries=3 --max-time=3600`
-- **Processes:** `2` (or more based on server CPU)
+Configure the following tasks under aaPanel **Cron** menu (**Type of Task:** `Shell Script`):
 
-### 3. File Permissions Routine
-Whenever deploying code updates:
+| # | Task Name | Frequency | Cron Expression | Shell Script Command | Purpose |
+| :- | :--- | :--- | :--- | :--- | :--- |
+| **1** | **Maildoll Master Scheduler** *(Mandatory)* | Every 1 Minute | `* * * * *` | `php /www/wwwroot/mailer.webassets.tech/artisan schedule:run >> /dev/null 2>&1` | Triggers all scheduled jobs (emails, SMS, reports) |
+| **2** | **Email Campaign Sender** | Every 1 Minute | `* * * * *` | `php /www/wwwroot/mailer.webassets.tech/artisan email:send >> /dev/null 2>&1` | Dispatches outgoing campaign emails |
+| **3** | **SMS Campaign Sender** | Every 1 Minute | `* * * * *` | `php /www/wwwroot/mailer.webassets.tech/artisan sms:send >> /dev/null 2>&1` | Dispatches outgoing campaign SMS |
+| **4** | **Queue Worker (Single Run)** | Every 1 Minute | `* * * * *` | `php /www/wwwroot/mailer.webassets.tech/artisan queue:work --stop-when-empty >> /dev/null 2>&1` | Processes queued jobs (if not using Supervisor) |
+| **5** | **Failed Queue Retry** | Every 5-10 Mins | `*/5 * * * *` | `php /www/wwwroot/mailer.webassets.tech/artisan queueretry:cron >> /dev/null 2>&1` | Automatically retries failed background jobs |
+
+> [!CAUTION]
+> **CRITICAL:** Always append `>> /dev/null 2>&1` to the end of every cron command in aaPanel. Omitting this will cause Linux cron to attempt sending an email for every command run, rapidly generating thousands of failed emails and overloading your server's Postfix queue!
+
+---
+
+### Alternative: Continuous Queue Worker (Supervisor Daemon)
+
+For enterprise email volumes, running a continuous background worker is recommended over the 1-minute cron worker.
+
+In aaPanel **App Store** > **Supervisor Manager**:
+1. Click **Add Daemon**:
+   - **Name:** `maildoll-worker`
+   - **Run User:** `www`
+   - **Command:** `php /www/wwwroot/mailer.webassets.tech/artisan queue:work --sleep=3 --tries=3 --max-time=3600`
+   - **Number of Processes:** `2` (adjust according to VPS CPU cores)
+2. Click **Confirm** and verify the status is **Running**.
+
+---
+
+### Standard Deployment Routine (Code Updates)
+
+Whenever pulling latest updates from GitHub to your production server:
+
 ```bash
 cd /www/wwwroot/mailer.webassets.tech
 git pull origin main
@@ -351,3 +481,4 @@ chmod -R 775 storage bootstrap/cache
 ---
 
 *Authored for the WebAssets-Tech Infrastructure Team.*
+
