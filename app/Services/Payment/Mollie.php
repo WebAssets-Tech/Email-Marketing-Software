@@ -14,7 +14,14 @@ class Mollie extends PaymentProcessor {
     public function __construct() {
         parent::__construct();
         $this->mollie = new MollieApiClient();
-        $this->mollie->setApiKey(config('services.payment_gateways.mollie.api_key'));
+        $apiKey = config('services.payment_gateways.mollie.api_key');
+        if (!empty($apiKey)) {
+            try {
+                $this->mollie->setApiKey($apiKey);
+            } catch (\Throwable $e) {
+                // Ignore invalid key during gateway discovery
+            }
+        }
     }
 
     public function handle(PaymentRequest $request, SubscriptionPlan $subscription): bool {
