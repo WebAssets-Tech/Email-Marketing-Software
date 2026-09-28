@@ -43,14 +43,14 @@ return [
             'password' => env('MAIL_PASSWORD', 'mmgdkgzjgzsyogsw'),
             'timeout' => null,
             'auth_mode' => null,
-            // 'stream' => [
-            //     'ssl' => [
-            //         'allow_self_signed' => true,
-            
-            //         'verify_peer' => false,
-            //         'verify_peer_name' => false,
-            //     ],
-            // ],
+            'verify_peer' => false,
+            'stream' => [
+                'ssl' => [
+                    'allow_self_signed' => true,
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                ],
+            ],
         ],
         'dynamic' => [
             'transport' => env('SMTP_TEST_MAILER', 'smtp'),
@@ -63,6 +63,14 @@ return [
             'from_email' => env('SMTP_TEST_FROM_ADDRESS', 'mojahid@imjol.com'),
             'timeout' => null,
             'auth_mode' => null,
+            'verify_peer' => false,
+            'stream' => [
+                'ssl' => [
+                    'allow_self_signed' => true,
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                ],
+            ],
         ],
 
         'ses' => [

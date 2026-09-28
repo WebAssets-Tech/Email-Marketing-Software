@@ -43,6 +43,14 @@ class MultiMailer {
                 'from_email' => $provider->sender_email?->sender_email_address,
                 'timeout' => null,
                 'auth_mode' => null,
+                'verify_peer' => false,
+                'stream' => [
+                    'ssl' => [
+                        'allow_self_signed' => true,
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ],
+                ],
             ],
         ]);
 
