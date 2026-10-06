@@ -9,7 +9,6 @@ use App\Models\PlanPurchased;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Models\UserSentLimitPlan;
-use App\Services\Payment\FreePayment;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -47,12 +46,16 @@ class PayPalPaymentController extends Controller {
             return back();
         }
         try {
-            $payment = new FreePayment('free');
-            $payment->process($request);
-
-            return view($payment->successView);
-        } catch (Throwable $th) {
-            return view($payment->failedView);
+            $user = Auth::user();
+            if ($user) {
+                assignFreePlanToUser($user);
+                Alert::success(translate('Success'), translate('Free plan activated successfully!'));
+                return redirect()->route('dashboard');
+            }
+            return redirect()->route('login');
+        } catch (\Throwable $th) {
+            Alert::error(translate('Whoops'), translate('Something went wrong'));
+            return back();
         }
     }
 

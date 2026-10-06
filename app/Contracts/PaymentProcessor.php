@@ -77,6 +77,7 @@ abstract class PaymentProcessor {
                 $user->password = Hash::make($request->password);
                 $user->slug = Str::slug($request->name).rand(100, 1000);
                 $user->visitor = $_SERVER['REMOTE_ADDR'];
+                $user->active = true;
                 $user->save();
             }
             $plan = $this->createPlan($subscription, $user, $this->getPaymentMethod());

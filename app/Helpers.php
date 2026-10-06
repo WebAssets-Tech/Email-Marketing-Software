@@ -5011,3 +5011,117 @@ function removeForeignKey(string $tableName, string $foreignKey)
         $table->dropForeign([$foreignKey]);
     });
 }
+
+/**
+ * Auto-assign and activate Free Tier Subscription Plan for a user
+ */
+function assignFreePlanToUser($user, $customPlan = null)
+{
+    if (!$user) {
+        return false;
+    }
+
+    try {
+        $plan = $customPlan;
+
+        if (!$plan) {
+            $plan = SubscriptionPlan::where('status', 1)
+                ->where(function ($q) {
+                    $q->where('price', '<=', 0)
+                      ->orWhere('name', 'like', '%free%');
+                })
+                ->first();
+
+            if (!$plan) {
+                $plan = SubscriptionPlan::where('price', '<=', 0)->first();
+            }
+
+            if (!$plan) {
+                $plan = SubscriptionPlan::where('status', 1)->orderBy('price', 'asc')->first();
+            }
+
+            if (!$plan) {
+                $plan = SubscriptionPlan::create([
+                    'name' => 'free',
+                    'duration' => '1',
+                    'emails' => '1000',
+                    'sms' => '100',
+                    'agent_limit' => '5',
+                    'description' => '<p>Free starter plan to kickstart your email broadcasts, test SMTP relays, and discover core features.</p>',
+                    'price' => 0,
+                    'status' => 1,
+                    'display' => 1,
+                ]);
+            }
+        }
+
+        $emails = max((int) ($plan->emails ?? 1000), 100);
+        $sms = max((int) ($plan->sms ?? 100), 50);
+        $duration = max((int) ($plan->duration ?? 1), 1);
+        $agentLimit = !empty($plan->agent_limit) ? (int) $plan->agent_limit : 5;
+        $planName = !empty($plan->name) ? $plan->name : 'Free';
+        $planId = $plan->id ?? null;
+
+        // 1. Ensure PlanPurchased record exists and is active
+        $planPurchased = PlanPurchased::where('user_id', $user->id)->first();
+        if (!$planPurchased) {
+            $planPurchased = new PlanPurchased();
+            $planPurchased->user_id = $user->id;
+            $planPurchased->plan_id = $planId;
+            $planPurchased->plan_name = $planName;
+            $planPurchased->price = 0;
+            $planPurchased->invoice = invoiceNumber();
+            $planPurchased->gateway = 'free';
+            $planPurchased->status = true;
+            $planPurchased->save();
+        } else {
+            $planPurchased->status = true;
+            $planPurchased->save();
+        }
+
+        // 2. Ensure UserSentLimitPlan record exists and is active
+        $limitPlan = UserSentLimitPlan::where('owner_id', $user->id)->first();
+        if (!$limitPlan) {
+            $limitPlan = new UserSentLimitPlan();
+            $limitPlan->owner_id = $user->id;
+            $limitPlan->plan_name = $planName;
+            $limitPlan->limit = (string) $emails;
+            $limitPlan->from = Carbon::now();
+            $limitPlan->to = Carbon::now()->addMonths($duration);
+            $limitPlan->status = true;
+            $limitPlan->save();
+        } else {
+            $limitPlan->status = true;
+            $limitPlan->save();
+        }
+
+        // 3. Ensure EmailSMSLimitRate record exists and is active
+        $emailSmsRate = EmailSMSLimitRate::where('owner_id', $user->id)->first();
+        if (!$emailSmsRate) {
+            $emailSmsRate = new EmailSMSLimitRate();
+            $emailSmsRate->owner_id = $user->id;
+            $emailSmsRate->email = (string) $emails;
+            $emailSmsRate->sms = (string) $sms;
+            $emailSmsRate->agent = (string) $agentLimit;
+            $emailSmsRate->from = Carbon::now();
+            $emailSmsRate->to = Carbon::now()->addMonths($duration);
+            $emailSmsRate->status = true;
+            $emailSmsRate->save();
+        } else {
+            $emailSmsRate->status = true;
+            if ((int) $emailSmsRate->email <= 0) {
+                $emailSmsRate->email = (string) $emails;
+            }
+            if ((int) $emailSmsRate->sms <= 0) {
+                $emailSmsRate->sms = (string) $sms;
+            }
+            $emailSmsRate->save();
+        }
+
+        return true;
+    } catch (\Throwable $th) {
+        \Illuminate\Support\Facades\Log::error('assignFreePlanToUser error: ' . $th->getMessage());
+        return false;
+    }
+}
+

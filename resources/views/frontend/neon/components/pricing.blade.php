@@ -17,7 +17,7 @@
                         <div class="fancy-list-img purple-hover">{{ formatPrice($plans->price) }}</div>
                         <div class="service-detail align-self-center">
                             <h4 class="h4 mb-2">{{ Str::upper($plans->name) }}</h4>
-                            <p>{{ strip_tags($plans->description) }}</p>
+                            <p>{{ $plans->clean_description ?? strip_tags($plans->description) }}</p>
                             <div class="text-left">
                                 <ul class="iq-list mb-5">
                                     <li><i class="ion ion-checkmark-round"></i><span> {{ $plans->duration }}

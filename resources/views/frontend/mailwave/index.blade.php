@@ -878,10 +878,15 @@
                   <div class="popular-ribbon">@translate(Most Popular)</div>
                 @endif
                 <h3 class="plan-title">{{ Str::title($plan->name) }}</h3>
-                <p class="plan-desc">{{ strip_tags($plan->description) }}</p>
+                <p class="plan-desc">{{ $plan->clean_description ?? strip_tags($plan->description) }}</p>
                 <div class="price-box">
-                  <span class="price-val">{{ formatPrice($plan->price) }}</span>
-                  <span class="price-period">/ {{ $plan->duration }} {{ $plan->duration > 1 ? 'months' : 'month' }}</span>
+                  @if ($plan->price < 1)
+                    <span class="price-val">@translate(Free)</span>
+                    <span class="price-period">/ {{ $plan->duration }} {{ $plan->duration > 1 ? 'months' : 'month' }}</span>
+                  @else
+                    <span class="price-val">{{ formatPrice($plan->price) }}</span>
+                    <span class="price-period">/ {{ $plan->duration }} {{ $plan->duration > 1 ? 'months' : 'month' }}</span>
+                  @endif
                 </div>
                 <ul class="pricing-features-list">
                   <li class="pricing-feature-row">
@@ -908,10 +913,24 @@
                   </li>
                 </ul>
 
-                <a href="{{ route('payment.index', $plan) }}" class="btn {{ $loop->iteration == 2 ? 'btn-primary' : 'btn-outline' }}" style="width: 100%;">
-                  <span>@translate(Get Started)</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-                </a>
+                @if ($plan->price < 1)
+                  @auth
+                    <a href="{{ route('dashboard') }}" class="btn {{ $loop->iteration == 2 ? 'btn-primary' : 'btn-outline' }}" style="width: 100%;">
+                      <span>@translate(Go to Dashboard)</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                  @else
+                    <a href="{{ Route::has('user_register') ? route('user_register') : route('payment.index', $plan) }}" class="btn {{ $loop->iteration == 2 ? 'btn-primary' : 'btn-outline' }}" style="width: 100%;">
+                      <span>@translate(Start Free)</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </a>
+                  @endauth
+                @else
+                  <a href="{{ route('payment.index', $plan) }}" class="btn {{ $loop->iteration == 2 ? 'btn-primary' : 'btn-outline' }}" style="width: 100%;">
+                    <span>@translate(Get Started)</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                  </a>
+                @endif
               </div>
             @endforeach
           </div>

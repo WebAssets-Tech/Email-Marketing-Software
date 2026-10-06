@@ -17,10 +17,13 @@ class CheckPlanStatus
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (auth()->user()->user_type != 'Admin' && 
-        !EmailSMSLimitRate::UserCheck()->first()?->status) {
-            Alert::warning('Unauthorized!', 'You don\'t have any active plan');
-            return redirect('/#pricing');
+        $user = auth()->user();
+        if ($user && $user->user_type != 'Admin') {
+            $hasActivePlan = EmailSMSLimitRate::UserCheck()->where('status', 1)->exists();
+            if (!$hasActivePlan) {
+                // Automatically assign and activate Free Tier plan
+                assignFreePlanToUser($user);
+            }
         }
         
         return $next($request);

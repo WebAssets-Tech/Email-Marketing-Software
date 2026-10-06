@@ -17,6 +17,12 @@ class PaymentController extends Controller
     {
         $isFree = $plan->price < 1;
 
+        if ($isFree && auth()->check()) {
+            assignFreePlanToUser(auth()->user(), $plan);
+            Alert::success(translate('Success'), translate('Free plan activated successfully!'));
+            return redirect()->route('dashboard');
+        }
+
         return view('payment.index', compact('plan', 'isFree'));
     }
 

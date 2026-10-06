@@ -64,11 +64,15 @@ class RegisterController extends Controller {
             $user->password = Hash::make($request->password);
             $user->slug = $slug.rand(100, 1000);
             $user->visitor = $_SERVER['REMOTE_ADDR'];
+            $user->active = true;
             $user->save();
+
+            // Auto-assign and activate Free Tier subscription plan
+            assignFreePlanToUser($user);
 
             Auth::login($user, true);
 
-            Alert::success(translate('Success'), translate('Registered successfully!'));
+            Alert::success(translate('Success'), translate('Registered successfully! Your free plan has been activated.'));
 
             return redirect()->route('dashboard');
         } else {

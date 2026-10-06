@@ -153,7 +153,12 @@ class AuthController extends Controller
                 $update_user->active = true;
                 $update_user->save();
 
-                return redirect('/');
+                // Auto-assign and activate Free Tier subscription plan
+                assignFreePlanToUser($update_user);
+
+                Alert::success(translate('Success'), translate('Account activated successfully! Welcome to your dashboard.'));
+
+                return redirect()->route('dashboard');
             } else {
                 Alert::error(translate('Invalid'), translate('Invalid activation code. A new activation code already sent to your email.'));
 

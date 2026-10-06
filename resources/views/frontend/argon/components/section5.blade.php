@@ -40,7 +40,7 @@
             <div class="col-lg-4 mb-4 mb-lg-0 text-white mt-3">
                 <div class="card card-body bg-white px-4 py-4 hover-translate-y hover-shadow">
                     <h2 class="font-weight-bold">{{ Str::upper($plans->name) }}</h2>
-                    <p class="lead">{{ strip_tags($plans->description) }}</p>
+                    <p class="lead">{{ $plans->clean_description ?? strip_tags($plans->description) }}</p>
                     <div class="d-flex align-items-center my-3">
                         <h4 class="h2">{{ formatPrice($plans->price) }}</h4>
                         <p class="mt-2 ml-2">{{ Str::upper($plans->name) }}</p>
