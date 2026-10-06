@@ -190,6 +190,14 @@ function menu()
             'disabled' => env('SAAS_ACTIVE') == 'YES' ? 'NO' : 'NO',
             'position' => 9,
             'sub_menu' => [
+                'mailwave' => [
+                    'icon' => 'align-left',
+                    'route_name' => 'frontend.index',
+                    'active_route_name' => 'themes',
+                    'params' => [],
+                    'disabled' => env('SAAS_ACTIVE') == 'YES' ? 'NO' : 'NO',
+                    'title' => 'MailWave',
+                ],
                 'argon' => [
                     'icon' => 'align-left',
                     'route_name' => 'frontend.index',
@@ -2837,13 +2845,16 @@ function weeklyTopSendersRecord($id)
  */
 function theme()
 {
-    $theme = org('theme');
-
-    if ($theme != null) {
-        return $theme;
-    } else {
-        return 'argon';
+    try {
+        $theme = org('theme');
+        if (!empty($theme)) {
+            return $theme;
+        }
+    } catch (\Throwable $th) {
+        // Fallback if db table not ready
     }
+
+    return env('ACTIVE_THEME', 'mailwave');
 }
 
 /**

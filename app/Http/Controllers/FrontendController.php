@@ -32,11 +32,70 @@ class FrontendController extends Controller {
      * INDEX
      */
     public function index() {
-        if (config('app.theme_disabled')) {
+        if (config('app.theme_disabled') || disable_theme()) {
             return redirect()->route('dashboard'); // Redirect to dashboard
         } else {
-            return view('frontend.'.config('app.theme').'.index'); // Load theme index
+            $activeTheme = theme();
+            if (view()->exists('frontend.' . $activeTheme . '.index')) {
+                return view('frontend.' . $activeTheme . '.index');
+            }
+            return view('frontend.' . config('app.theme', 'mailwave') . '.index');
         }
+    }
+
+    /**
+     * DYNAMIC XML SITEMAP (Automatically adopts current domain)
+     */
+    public function sitemap() {
+        $baseUrl = url('/');
+        $now = date('c');
+
+        $routes = [
+            ['path' => '/', 'freq' => 'daily', 'prio' => '1.0'],
+            ['path' => '/pricing', 'freq' => 'weekly', 'prio' => '0.9'],
+            ['path' => '/contact', 'freq' => 'monthly', 'prio' => '0.7'],
+            ['path' => '/page/privacy-policy', 'freq' => 'monthly', 'prio' => '0.5'],
+            ['path' => '/page/terms-of-service', 'freq' => 'monthly', 'prio' => '0.5'],
+        ];
+
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+        foreach ($routes as $route) {
+            $loc = htmlspecialchars(rtrim($baseUrl, '/') . $route['path']);
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$loc}</loc>\n";
+            $xml .= "    <lastmod>{$now}</lastmod>\n";
+            $xml .= "    <changefreq>{$route['freq']}</changefreq>\n";
+            $xml .= "    <priority>{$route['prio']}</priority>\n";
+            $xml .= "  </url>\n";
+        }
+        $xml .= '</urlset>';
+
+        return response($xml, 200)->header('Content-Type', 'application/xml');
+    }
+
+    /**
+     * DYNAMIC ROBOTS.TXT (Automatically adopts current domain)
+     */
+    public function robots() {
+        $sitemapUrl = url('/sitemap.xml');
+        $content = "User-agent: *\n";
+        $content .= "Allow: /\n";
+        $content .= "Allow: /frontend/\n";
+        $content .= "Allow: /landing-preview/\n";
+        $content .= "Allow: /css/\n";
+        $content .= "Allow: /js/\n\n";
+        $content .= "# Disallow internal application and admin routes\n";
+        $content .= "Disallow: /admin/\n";
+        $content .= "Disallow: /dashboard/\n";
+        $content .= "Disallow: /user/\n";
+        $content .= "Disallow: /storage/temp/\n";
+        $content .= "Disallow: /export/\n";
+        $content .= "Disallow: /install/\n\n";
+        $content .= "# Dynamic XML Sitemap\n";
+        $content .= "Sitemap: {$sitemapUrl}\n";
+
+        return response($content, 200)->header('Content-Type', 'text/plain');
     }
 
     /**

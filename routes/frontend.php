@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Route; //version 5.0.0
 
 Route::group(['middleware' => 'installed'], function () {
     Route::get('/', [FrontendController::class, 'index'])->name('frontend.index');
+    Route::get('sitemap.xml', [FrontendController::class, 'sitemap'])->name('frontend.sitemap');
+    Route::get('robots.txt', [FrontendController::class, 'robots'])->name('frontend.robots');
 
     /**
      * CRONY -- SaaS

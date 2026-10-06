@@ -14,7 +14,7 @@ return [
     */
 
     'name' => env('APP_NAME', 'Laravel'),
-    'theme' => env('ACTIVE_THEME', 'argon'),
+    'theme' => env('ACTIVE_THEME', 'mailwave'),
     'theme_disabled' => env('DISABLE_THEME', 'NO') == 'YES',
 
     /*

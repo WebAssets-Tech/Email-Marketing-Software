@@ -142,7 +142,7 @@ class OrganizationSetupController extends Controller
             }
 
             if ($request->has('theme')) {
-                $system = OrganizationSetup::where('name', 'theme')->first();
+                $system = OrganizationSetup::where('name', 'theme')->first() ?? new OrganizationSetup();
                 $system->name = 'theme';
                 $system->value = $request->theme;
                 $system->save();

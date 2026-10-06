@@ -1,2 +1,17 @@
 User-agent: *
-Disallow:
+Allow: /
+Allow: /frontend/
+Allow: /landing-preview/
+Allow: /css/
+Allow: /js/
+
+# Disallow internal application and admin routes
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /user/
+Disallow: /storage/temp/
+Disallow: /export/
+Disallow: /install/
+
+# Dynamic relative sitemap (automatically resolves to the root host domain)
+Sitemap: /sitemap.xml

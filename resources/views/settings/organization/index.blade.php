@@ -455,12 +455,12 @@
                                 {{-- THEME MANAGER --}}
 
                                 <div class="mt-5">
-                                    <label>@translate(Select Theme) <small>Default is Argon</small> </label>
+                                    <label>@translate(Select Theme) <small>Choose Neon, Argon, or MailWave</small> </label>
                                 </div>
 
                                 <div class="grid grid-cols-12 gap-6 mt-5">
 
-                                    <div class="intro-y col-span-12 xl:col-span-6">
+                                    <div class="intro-y col-span-12 md:col-span-6 xl:col-span-4">
                                         <div class="box">
                                             <div class="flex items-start px-5 pt-5">
                                                 <div class="w-full flex flex-col lg:flex-row items-center">
@@ -496,7 +496,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="intro-y col-span-12 xl:col-span-6">
+                                    <div class="intro-y col-span-12 md:col-span-6 xl:col-span-4">
                                         <div class="box">
                                             <div class="flex items-start px-5 pt-5">
                                                 <div class="w-full flex flex-col lg:flex-row items-center">
@@ -531,6 +531,43 @@
                                             </div>
                                         </div>
                                     </div>
+
+                                    <div class="intro-y col-span-12 md:col-span-6 xl:col-span-4">
+                                        <div class="box">
+                                            <div class="flex items-start px-5 pt-5">
+                                                <div class="w-full flex flex-col lg:flex-row items-center">
+                                                    <div class="section over-hide z-bigger">
+                                                        <div class="section over-hide z-bigger">
+                                                            <div class="container pb-5">
+                                                                <div class="row justify-content-center pb-5">
+                                                                    <div class="col-12 pb-5">
+                                                                        <input class="checkbox-tools" type="radio"
+                                                                            value="mailwave"
+                                                                            {{ theme() == 'mailwave' ? 'checked' : null }}
+                                                                            name="theme" id="mailwave">
+                                                                        <label class="for-checkbox-tools w-full"
+                                                                            for="mailwave">
+                                                                            <div class="">
+                                                                                <div class="h-60 xxl:h-60 image-fit">
+                                                                                    <div
+                                                                                        class="rounded-md preview-template">
+                                                                                        <div style="background-image: url('{{ filePath('themes/mailwave.png') }}');"
+                                                                                            class="preview-template">
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </label>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                 </div>
                                 {{-- THEME MANAGER::ENDS --}}
 
