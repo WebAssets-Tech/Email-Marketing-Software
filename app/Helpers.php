@@ -1577,26 +1577,54 @@ function formatPrice($price)
 //format the Price
 function noFormatPrice($huh)
 {
-    $x = session('currency');
-    if ($x != null) {
-        $ids = $x;
-    } else {
-        $ids = (int) getSystemSetting('default_currencies')->value;
+    try {
+        $x = session('currency');
+        if ($x != null) {
+            $ids = $x;
+        } else {
+            $defaultSetting = getSystemSetting('default_currencies');
+            $ids = $defaultSetting ? (int) $defaultSetting->value : null;
+        }
+
+        if ($ids != null) {
+            $currency = Currency::find($ids);
+            if ($currency) {
+                return $huh * $currency->rate;
+            }
+        }
+    } catch (\Throwable $th) {
+        // Fallback
     }
 
-    $currency = Currency::find($ids);
-    $p = $huh * $currency->rate;
-
-    return $p;
+    return (float) $huh;
 }
 
 //format the Price Code
 function formatPriceCode()
 {
-    $priceCode = session('currency');
-    $currency = Currency::find($priceCode);
+    try {
+        $priceCode = session('currency');
+        if ($priceCode == null) {
+            $defaultSetting = getSystemSetting('default_currencies');
+            $priceCode = $defaultSetting ? (int) $defaultSetting->value : null;
+        }
 
-    return $currency->code;
+        if ($priceCode != null) {
+            $currency = Currency::find($priceCode);
+            if ($currency && !empty($currency->code)) {
+                return $currency->code;
+            }
+        }
+
+        $firstCurrency = Currency::first();
+        if ($firstCurrency && !empty($firstCurrency->code)) {
+            return $firstCurrency->code;
+        }
+    } catch (\Throwable $th) {
+        // Fallback
+    }
+
+    return 'USD';
 }
 
 function getPriceRate($code)
