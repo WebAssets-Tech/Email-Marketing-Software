@@ -76,8 +76,9 @@ abstract class PaymentProcessor {
                 $user->email = $request->email;
                 $user->password = Hash::make($request->password);
                 $user->slug = Str::slug($request->name).rand(100, 1000);
-                $user->visitor = $_SERVER['REMOTE_ADDR'];
+                $user->visitor = request()->ip() ?? '127.0.0.1';
                 $user->active = true;
+                $user->user_type = 'Customer';
                 $user->save();
             }
             $plan = $this->createPlan($subscription, $user, $this->getPaymentMethod());
@@ -88,6 +89,11 @@ abstract class PaymentProcessor {
             DB::rollBack();
             throw $th;
         }
+
+        if (!Auth::check() && $user) {
+            Auth::login($user, true);
+        }
+
         SendInvoiceJob::dispatch($plan, $user);
     }
 
@@ -138,21 +144,28 @@ abstract class PaymentProcessor {
     }
 
     protected function createLimit(SubscriptionPlan $subscription, User $user): void {
+        // Deactivate previous limits so the newly purchased plan is active
+        UserSentLimitPlan::where('owner_id', $user->id)->update(['status' => false]);
+        EmailSMSLimitRate::where('owner_id', $user->id)->update(['status' => false]);
+
+        $duration = max((int) $subscription->duration, 1);
+
         $new_limit = new UserSentLimitPlan();
         $new_limit->owner_id = $user->id;
         $new_limit->plan_name = $subscription->name;
-        $new_limit->limit = $subscription->emails;
+        $new_limit->limit = (string) $subscription->emails;
         $new_limit->from = now();
-        $new_limit->to = now()->addMonths($subscription->duration);
+        $new_limit->to = now()->addMonths($duration);
         $new_limit->status = true;
         $new_limit->save();
 
         $email_sms_rate = new EmailSMSLimitRate();
         $email_sms_rate->owner_id = $user->id;
-        $email_sms_rate->email = $subscription->emails;
-        $email_sms_rate->sms = $subscription->sms;
+        $email_sms_rate->email = (string) $subscription->emails;
+        $email_sms_rate->sms = (string) $subscription->sms;
+        $email_sms_rate->agent = !empty($subscription->agent_limit) ? (string) $subscription->agent_limit : '5';
         $email_sms_rate->from = now();
-        $email_sms_rate->to = now()->addMonths($subscription->duration);
+        $email_sms_rate->to = now()->addMonths($duration);
         $email_sms_rate->status = true;
         $email_sms_rate->save();
     }

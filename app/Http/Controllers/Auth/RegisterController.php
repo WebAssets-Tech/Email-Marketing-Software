@@ -45,7 +45,25 @@ class RegisterController extends Controller {
         $this->middleware('guest');
     }
 
-    public function user_register(UserStoreRequest $request) {
+    /**
+     * Show the application registration form.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function showRegistrationForm() {
+        return view('auth.register');
+    }
+
+    public function user_register(Request $request) {
+        if ($request->isMethod('get')) {
+            return $this->showRegistrationForm();
+        }
+
+        $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
 
         if (env('DEMO_MODE') === 'YES') {
             Alert::warning('warning', 'This is demo purpose only');
@@ -55,16 +73,16 @@ class RegisterController extends Controller {
 
         $slug = Str::slug($request->name);
         $checkUser = User::where('email', $request->email)->count();
-        $checkSlug = User::where('slug', $slug)->count();
 
         if ($checkUser == 0) {
             $user = new User();
             $user->name = $request->name;
             $user->email = $request->email;
             $user->password = Hash::make($request->password);
-            $user->slug = $slug.rand(100, 1000);
-            $user->visitor = $_SERVER['REMOTE_ADDR'];
+            $user->slug = $slug . rand(100, 1000);
+            $user->visitor = request()->ip() ?? '127.0.0.1';
             $user->active = true;
+            $user->user_type = 'Customer';
             $user->save();
 
             // Auto-assign and activate Free Tier subscription plan
@@ -103,6 +121,19 @@ class RegisterController extends Controller {
      * @return \App\Models\User
      */
     protected function create(array $data) {
-        $this->user_register();
+        $slug = Str::slug($data['name']);
+        $user = new User();
+        $user->name = $data['name'];
+        $user->email = $data['email'];
+        $user->password = Hash::make($data['password']);
+        $user->slug = $slug . rand(100, 1000);
+        $user->visitor = request()->ip() ?? '127.0.0.1';
+        $user->active = true;
+        $user->user_type = 'Customer';
+        $user->save();
+
+        assignFreePlanToUser($user);
+
+        return $user;
     }
 }

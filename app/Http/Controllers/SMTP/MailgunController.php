@@ -15,8 +15,13 @@ class MailgunController extends Controller {
     private $emailService;
 
     public function __construct() {
-        $this->emailService = EmailService::where('provider_name', 'mailgun')->first();
-        $this->apiKey = $this->emailService?->api_key;
+        try {
+            $this->emailService = EmailService::where('provider_name', 'mailgun')->first();
+            $this->apiKey = $this->emailService?->api_key;
+        } catch (\Throwable $e) {
+            $this->emailService = null;
+            $this->apiKey = null;
+        }
     }
 
     public function create() {

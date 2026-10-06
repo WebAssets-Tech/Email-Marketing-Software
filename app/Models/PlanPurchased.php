@@ -17,11 +17,11 @@ class PlanPurchased extends Model {
      * Agent
      */
     public function scopeHasAgent($query) {
-        if (Auth::user()->user_type == 'Agent') {
-            return $query->where('owner_id', agent_owner_id());
+        if (Auth::check() && Auth::user()->user_type == 'Agent') {
+            return $query->where('user_id', agent_owner_id());
         }
 
-        return $query->where('owner_id', Auth::user()->id);
+        return $query->where('user_id', Auth::id());
     }
 
     //END

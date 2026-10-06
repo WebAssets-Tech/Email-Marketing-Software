@@ -18,8 +18,11 @@ class CheckPlanStatus
     public function handle(Request $request, Closure $next): Response
     {
         $user = auth()->user();
-        if ($user && $user->user_type != 'Admin') {
-            $hasActivePlan = EmailSMSLimitRate::UserCheck()->where('status', 1)->exists();
+        if ($user && $user->user_type != 'Admin' && $user->user_type != 'Agent') {
+            $hasActivePlan = EmailSMSLimitRate::where('owner_id', $user->id)
+                ->where('status', 1)
+                ->where('to', '>=', now())
+                ->exists();
             if (!$hasActivePlan) {
                 // Automatically assign and activate Free Tier plan
                 assignFreePlanToUser($user);

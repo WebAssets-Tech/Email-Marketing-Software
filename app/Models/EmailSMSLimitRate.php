@@ -15,21 +15,30 @@ class EmailSMSLimitRate extends Model {
      * Active
      */
     public function scopeActive($query) {
-        return $query->where('status', 1)->where('owner_id', Auth::user()->id);
+        if (Auth::check() && Auth::user()->user_type == 'Agent') {
+            return $query->where('status', 1)->where('owner_id', agent_owner_id());
+        }
+        return $query->where('status', 1)->where('owner_id', Auth::id());
     }
 
     /**
-     * Active
+     * Expired Check
      */
     public function scopeExpiredCheck($query) {
-        return $query->where('status', 0)->where('owner_id', Auth::user()->id);
+        if (Auth::check() && Auth::user()->user_type == 'Agent') {
+            return $query->where('status', 0)->where('owner_id', agent_owner_id());
+        }
+        return $query->where('status', 0)->where('owner_id', Auth::id());
     }
 
     /**
-     * Expired
+     * User Check
      */
     public function scopeUserCheck($query) {
-        return $query->where('owner_id', Auth::user()->id);
+        if (Auth::check() && Auth::user()->user_type == 'Agent') {
+            return $query->where('owner_id', agent_owner_id());
+        }
+        return $query->where('owner_id', Auth::id());
     }
 
     /**

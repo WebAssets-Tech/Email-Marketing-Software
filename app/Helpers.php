@@ -2225,7 +2225,7 @@ function displaySubscriptionPlan()
  */
 function userSubscriptionPlan()
 {
-    UserSentLimitPlan::User()->Active()->first();
+    return UserSentLimitPlan::Active()->first();
 }
 
 /**
@@ -2249,13 +2249,12 @@ function expiredCheck()
  */
 function LimitStatus()
 {
-    $statusFalse = EmailSMSLimitRate::UserCheck()->first()->status;
-
-    if ($statusFalse == 1) {
-        return true;
-    } else {
+    $record = EmailSMSLimitRate::Active()->first() ?? EmailSMSLimitRate::UserCheck()->first();
+    if (!$record) {
         return false;
     }
+
+    return (bool) $record->status;
 }
 
 /**
@@ -2263,7 +2262,7 @@ function LimitStatus()
  */
 function dateLimitCheck()
 {
-    $dateCheck = EmailSMSLimitRate::Active()->whereDate('to', '>', Carbon::now())->first();
+    $dateCheck = EmailSMSLimitRate::Active()->where('to', '>=', Carbon::now())->first();
     if ($dateCheck) {
         return true;
     } else {
@@ -2277,30 +2276,36 @@ function dateLimitCheck()
 function emailLimitCheck($user)
 {
     try {
-        if (Auth::user()->user_type == 'Admin') {
+        if (Auth::check() && Auth::user()->user_type == 'Admin') {
             return true;
-        } else {
-            if (userSubscriptionLimit($user)->email > 0 && dateLimitCheck() && LimitStatus()) {
-                return true;
-            } else {
-                return false;
-            }
         }
+
+        $sub = userSubscriptionLimit($user);
+        if ($sub && (int) $sub->email > 0 && dateLimitCheck() && LimitStatus()) {
+            return true;
+        }
+
+        return false;
     } catch (\Throwable $th) {
-        return redirect()->route('dashboard')->withErrors($th->getMessage());
+        return false;
     }
 }
 
 function SMSLimitCheck($user)
 {
     try {
-        if (userSubscriptionLimit($user)->sms > 0 && dateLimitCheck()) {
+        if (Auth::check() && Auth::user()->user_type == 'Admin') {
             return true;
-        } else {
-            return false;
         }
+
+        $sub = userSubscriptionLimit($user);
+        if ($sub && (int) $sub->sms > 0 && dateLimitCheck()) {
+            return true;
+        }
+
+        return false;
     } catch (\Throwable $th) {
-        return redirect()->route('dashboard')->withErrors($th->getMessage());
+        return false;
     }
 }
 
@@ -2323,38 +2328,44 @@ function freeDateLimitCheck($plan_name)
 
 function availableEmailPerUser($user_id)
 {
-    return EmailSMSLimitRate::where('status', 1)->where('owner_id', $user_id)->first()->email;
+    $record = EmailSMSLimitRate::where('status', 1)->where('owner_id', $user_id)->first();
+    return $record ? (int) $record->email : 0;
 }
 
 function usedEmailPerUser($user_id)
 {
-    $plan_from = EmailSMSLimitRate::where('status', 1)->where('owner_id', $user_id)->first()->from;
+    $record = EmailSMSLimitRate::where('status', 1)->where('owner_id', $user_id)->first();
+    if (!$record) {
+        return 0;
+    }
+
     $cost_email = UserSentRecord::where('owner_id', $user_id)
-        ->where('created_at', '>=', $plan_from)->count();
+        ->where('created_at', '>=', $record->from)->count();
 
     return $cost_email;
 }
 
 /**
- * EMAAIL LIMIT PERCENTAGE
+ * EMAIL LIMIT PERCENTAGE
  */
 function emailLimitCheckPercentage($user)
 {
-    $limit = userSubscriptionLimit($user) ?? null;
+    $limitPlan = UserSentLimitPlan::where('owner_id', $user)->where('status', 1)->first();
+    $total = $limitPlan ? (int) $limitPlan->limit : 0;
 
-    if ($limit != null) {
-        if (userSubscriptionLimit($user)->email <= 0) {
-            return 0;
-        } else {
-            $substract = availableEmailPerUser($user) - usedEmailPerUser($user);
-            $divide = $substract / availableEmailPerUser($user);
-            $emailLeft = $divide * 100;
-
-            return $emailLeft;
-        }
-    } else {
-        return 1;
+    if ($total <= 0) {
+        $rate = EmailSMSLimitRate::where('status', 1)->where('owner_id', $user)->first();
+        $total = $rate ? (int) $rate->email + usedEmailPerUser($user) : 0;
     }
+
+    if ($total <= 0) {
+        return 0;
+    }
+
+    $available = availableEmailPerUser($user);
+    $percentage = ($available / $total) * 100;
+
+    return max(0, min(100, $percentage));
 }
 
 /**
@@ -2362,35 +2373,42 @@ function emailLimitCheckPercentage($user)
  */
 function availableSMSPerUser($user_id)
 {
-    return EmailSMSLimitRate::where('status', 1)->where('owner_id', $user_id)->first()->sms;
+    $record = EmailSMSLimitRate::where('status', 1)->where('owner_id', $user_id)->first();
+    return $record ? (int) $record->sms : 0;
 }
 
 function usedSMSPerUser($user_id)
 {
-    $plan_from = EmailSMSLimitRate::where('status', 1)->where('owner_id', $user_id)->first()->from;
-    $cost_email = UserSentRecord::where('owner_id', $user_id)
-        ->where('created_at', '>=', $plan_from)->count();
+    $record = EmailSMSLimitRate::where('status', 1)->where('owner_id', $user_id)->first();
+    if (!$record) {
+        return 0;
+    }
 
-    return $cost_email;
+    $cost_sms = UserSentRecord::where('owner_id', $user_id)
+        ->where('type', 'sms')
+        ->where('created_at', '>=', $record->from)->count();
+
+    return $cost_sms;
 }
 
 function smsLimitCheckPercentage($user)
 {
-    $limit = userSubscriptionLimit($user) ?? null;
-
-    if ($limit != null) {
-        if (userSubscriptionLimit($user)->sms <= 0) {
-            return 0;
-        } else {
-            $substract = availableSMSPerUser($user) - usedSMSPerUser($user);
-            $divide = $substract / availableSMSPerUser($user);
-            $smsLeft = $divide * 100;
-
-            return $smsLeft;
-        }
-    } else {
-        return 1;
+    $rate = EmailSMSLimitRate::where('status', 1)->where('owner_id', $user)->first();
+    if (!$rate) {
+        return 0;
     }
+
+    $used = usedSMSPerUser($user);
+    $available = (int) $rate->sms;
+    $total = $available + $used;
+
+    if ($total <= 0) {
+        return 0;
+    }
+
+    $percentage = ($available / $total) * 100;
+
+    return max(0, min(100, $percentage));
 }
 
 /**
@@ -2446,7 +2464,7 @@ function availableEmail()
     $availableEmail = EmailSMSLimitRate::Active()->first();
 
     if ($availableEmail != null) {
-        return $availableEmail->email;
+        return (int) $availableEmail->email;
     } else {
         return 0;
     }
@@ -2468,7 +2486,7 @@ function usedEmail()
 
 function emailLeftCount()
 {
-    return $emailLeft = availableEmail();
+    return availableEmail();
 }
 
 function emailLeft()
@@ -2476,7 +2494,7 @@ function emailLeft()
     if (totalSentMail() <= 0) {
         return availableEmail();
     } else {
-        return $emailsLeft = totalSentMail() / totalSentMail();
+        return availableEmail() / max(totalSentMail(), 1);
     }
 }
 
@@ -2488,7 +2506,7 @@ function availableSMS()
     $availableSMS = EmailSMSLimitRate::Active()->first();
 
     if ($availableSMS != null) {
-        return $availableSMS->sms;
+        return (int) $availableSMS->sms;
     } else {
         return 0;
     }
@@ -2511,7 +2529,7 @@ function usedSMS()
 
 function smsLeftCount()
 {
-    return $smsLeft = availableSMS();
+    return availableSMS();
 }
 
 function smslLeft()
@@ -2519,9 +2537,12 @@ function smslLeft()
     if (totalSMSSent() <= 0) {
         return availableSMS();
     } else {
-        $left = EmailSMSLimitRate::Active()->first()->sms;
+        $active = EmailSMSLimitRate::Active()->first();
+        if (!$active) {
+            return 0;
+        }
 
-        return $emaislLeft = availableSMS() / totalSMSSent();
+        return availableSMS() / max(totalSMSSent(), 1);
     }
 }
 
@@ -4340,14 +4361,16 @@ function monthNameByNumber($number)
 }
 
 // marketplace csv path
-function marketplace_email_csv_path($country)
+function marketplace_email_csv_path($country = null)
 { // marketplace_email_csv_path
-    return env('APP_URL') . '/public/uploads/marketplace/csv/email/' . $country . '.csv';
+    $fileName = $country ? $country . '.csv' : '';
+    return (env('APP_URL') ?: url('/')) . '/public/uploads/marketplace/csv/email/' . $fileName;
 }
 
-function marketplace_sms_csv_path()
+function marketplace_sms_csv_path($country = null)
 { // marketplace_sms_csv_path
-    return env('APP_URL') . '/public/uploads/marketplace/csv/sms/' . $country . '.csv';
+    $fileName = $country ? $country . '.csv' : '';
+    return (env('APP_URL') ?: url('/')) . '/public/uploads/marketplace/csv/sms/' . $fileName;
 }
 
 function monthlyWiseSales()
@@ -5092,6 +5115,9 @@ function assignFreePlanToUser($user, $customPlan = null)
             $limitPlan->save();
         } else {
             $limitPlan->status = true;
+            if (Carbon::parse($limitPlan->to)->isPast()) {
+                $limitPlan->to = Carbon::now()->addMonths($duration);
+            }
             $limitPlan->save();
         }
 
@@ -5114,6 +5140,9 @@ function assignFreePlanToUser($user, $customPlan = null)
             }
             if ((int) $emailSmsRate->sms <= 0) {
                 $emailSmsRate->sms = (string) $sms;
+            }
+            if (Carbon::parse($emailSmsRate->to)->isPast()) {
+                $emailSmsRate->to = Carbon::now()->addMonths($duration);
             }
             $emailSmsRate->save();
         }

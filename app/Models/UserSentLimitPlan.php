@@ -10,7 +10,17 @@ class UserSentLimitPlan extends Model {
     use HasFactory;
 
     public function scopeActive($query) {
-        return $query->where('owner_id', Auth::user()->id)->where('status', 1);
+        if (Auth::check() && Auth::user()->user_type == 'Agent') {
+            return $query->where('owner_id', agent_owner_id())->where('status', 1);
+        }
+        return $query->where('owner_id', Auth::id())->where('status', 1);
+    }
+
+    public function scopeUser($query) {
+        if (Auth::check() && Auth::user()->user_type == 'Agent') {
+            return $query->where('owner_id', agent_owner_id());
+        }
+        return $query->where('owner_id', Auth::id());
     }
 
     /**
