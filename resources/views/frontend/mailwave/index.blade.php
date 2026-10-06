@@ -65,7 +65,7 @@
         "image": "{{ asset('frontend/mailwave/mailwave-logo.png') }}",
         "offers": {
           "@type": "AggregateOffer",
-          "priceCurrency": "USD",
+          "priceCurrency": "{{ function_exists('formatPriceCode') ? (formatPriceCode() ?? 'USD') : 'USD' }}",
           "lowPrice": "19",
           "highPrice": "149",
           "offerCount": "3"
@@ -866,134 +866,186 @@
           <p class="section-subtitle">No hidden per-contact fees. Choose the plan that accelerates your marketing growth.</p>
         </div>
 
-        <!-- Monthly / Annual Switcher -->
-        <div class="billing-switcher">
-          <span class="switch-label active" id="label-monthly">Monthly Billing</span>
-          <div class="switch-toggle" id="billing-toggle" role="button" aria-label="Toggle annual billing"></div>
-          <span class="switch-label" id="label-annual">Annual Billing</span>
-          <span class="discount-pill">Save 20%</span>
-        </div>
+        @php
+          $dbPlans = displaySubscriptions();
+        @endphp
 
-        <div class="pricing-grid">
-          <!-- Starter Plan -->
-          <div class="pricing-card">
-            <h3 class="plan-title">Starter</h3>
-            <p class="plan-desc">For indie makers, startups, and solo entrepreneurs.</p>
-            <div class="price-box">
-              <span class="price-currency">$</span>
-              <span class="price-val" id="price-starter">19</span>
-              <span class="price-period">/month</span>
-            </div>
-            <ul class="pricing-features-list">
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Up to 25,000 Contacts</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Visual Drag &amp; Drop Builder</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Amazon SES &amp; Gmail SMTP</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>SMS Broadcast Gateway</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Basic Open &amp; Click Tracking</span>
-              </li>
-            </ul>
-            @auth
-              <a href="{{ route('dashboard') }}" class="btn btn-outline" style="width: 100%;">Access Account</a>
-            @else
-              @if (Route::has('user_register'))
-                <a href="{{ route('user_register') }}" class="btn btn-outline" style="width: 100%;">Start Free Trial</a>
+        @if ($dbPlans->isNotEmpty())
+          <div class="pricing-grid">
+            @foreach ($dbPlans as $plan)
+              <div class="pricing-card {{ $loop->iteration == 2 ? 'popular' : '' }}">
+                @if ($loop->iteration == 2)
+                  <div class="popular-ribbon">@translate(Most Popular)</div>
+                @endif
+                <h3 class="plan-title">{{ Str::title($plan->name) }}</h3>
+                <p class="plan-desc">{{ strip_tags($plan->description) }}</p>
+                <div class="price-box">
+                  <span class="price-val">{{ formatPrice($plan->price) }}</span>
+                  <span class="price-period">/ {{ $plan->duration }} {{ $plan->duration > 1 ? 'months' : 'month' }}</span>
+                </div>
+                <ul class="pricing-features-list">
+                  <li class="pricing-feature-row">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span><strong>{{ number_format($plan->emails) }}</strong> @translate(Emails Sending Limit)</span>
+                  </li>
+                  <li class="pricing-feature-row">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span><strong>{{ number_format($plan->sms) }}</strong> @translate(SMS Broadcast Credits)</span>
+                  </li>
+                  @if (!empty($plan->agent_limit))
+                    <li class="pricing-feature-row">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span><strong>{{ $plan->agent_limit }}</strong> @translate(Team Sub-Agents)</span>
+                    </li>
+                  @endif
+                  <li class="pricing-feature-row">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span>Amazon SES &amp; Multi-SMTP Relay Support</span>
+                  </li>
+                  <li class="pricing-feature-row">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span>Drag &amp; Drop Visual Studio + AI Copilot</span>
+                  </li>
+                </ul>
+
+                <a href="{{ route('payment.index', $plan) }}" class="btn {{ $loop->iteration == 2 ? 'btn-primary' : 'btn-outline' }}" style="width: 100%;">
+                  <span>@translate(Get Started)</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </a>
+              </div>
+            @endforeach
+          </div>
+        @else
+          <!-- Fallback Preview Cards (Shown when no plans configured in DB yet) -->
+          <!-- Monthly / Annual Switcher -->
+          <div class="billing-switcher">
+            <span class="switch-label active" id="label-monthly">Monthly Billing</span>
+            <div class="switch-toggle" id="billing-toggle" role="button" aria-label="Toggle annual billing"></div>
+            <span class="switch-label" id="label-annual">Annual Billing</span>
+            <span class="discount-pill">Save 20%</span>
+          </div>
+
+          <div class="pricing-grid">
+            <!-- Starter Plan -->
+            <div class="pricing-card">
+              <h3 class="plan-title">Starter</h3>
+              <p class="plan-desc">For indie makers, startups, and solo entrepreneurs.</p>
+              <div class="price-box">
+                <span class="price-currency">$</span>
+                <span class="price-val" id="price-starter">19</span>
+                <span class="price-period">/month</span>
+              </div>
+              <ul class="pricing-features-list">
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Up to 25,000 Contacts</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Visual Drag &amp; Drop Builder</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Amazon SES &amp; Gmail SMTP</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>SMS Broadcast Gateway</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Basic Open &amp; Click Tracking</span>
+                </li>
+              </ul>
+              @auth
+                <a href="{{ route('dashboard') }}" class="btn btn-outline" style="width: 100%;">Access Account</a>
               @else
-                <a href="{{ route('login') }}" class="btn btn-outline" style="width: 100%;">Sign In</a>
-              @endif
-            @endauth
-          </div>
-
-          <!-- Pro Plan (Most Popular) -->
-          <div class="pricing-card popular">
-            <div class="popular-ribbon">Most Popular</div>
-            <h3 class="plan-title">Pro Scale</h3>
-            <p class="plan-desc">For growing brands, ecommerce stores, and marketers.</p>
-            <div class="price-box">
-              <span class="price-currency">$</span>
-              <span class="price-val" id="price-pro">49</span>
-              <span class="price-period">/month</span>
+                @if (Route::has('user_register'))
+                  <a href="{{ route('user_register') }}" class="btn btn-outline" style="width: 100%;">Start Free Trial</a>
+                @else
+                  <a href="{{ route('login') }}" class="btn btn-outline" style="width: 100%;">Sign In</a>
+                @endif
+              @endauth
             </div>
-            <ul class="pricing-features-list">
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span><strong>Unlimited</strong> Contacts &amp; Subscribers</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Multi-SMTP Load Balancing</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span><strong>ChatGPT Copilot</strong> Copywriting</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Automated Drip Sequences</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Real-Time Bounce Shield &amp; Heatmaps</span>
-              </li>
-            </ul>
-            @auth
-              <a href="{{ route('dashboard') }}" class="btn btn-primary" style="width: 100%;">Upgrade Plan</a>
-            @else
-              @if (Route::has('user_register'))
-                <a href="{{ route('user_register') }}" class="btn btn-primary" style="width: 100%;">Get Pro Scale</a>
+
+            <!-- Pro Plan (Most Popular) -->
+            <div class="pricing-card popular">
+              <div class="popular-ribbon">Most Popular</div>
+              <h3 class="plan-title">Pro Scale</h3>
+              <p class="plan-desc">For growing brands, ecommerce stores, and marketers.</p>
+              <div class="price-box">
+                <span class="price-currency">$</span>
+                <span class="price-val" id="price-pro">49</span>
+                <span class="price-period">/month</span>
+              </div>
+              <ul class="pricing-features-list">
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Unlimited</strong> Contacts &amp; Subscribers</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Multi-SMTP Load Balancing</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>ChatGPT Copilot</strong> Copywriting</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Automated Drip Sequences</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Real-Time Bounce Shield &amp; Heatmaps</span>
+                </li>
+              </ul>
+              @auth
+                <a href="{{ route('dashboard') }}" class="btn btn-primary" style="width: 100%;">Upgrade Plan</a>
               @else
-                <a href="{{ route('login') }}" class="btn btn-primary" style="width: 100%;">Get Started</a>
-              @endif
-            @endauth
-          </div>
-
-          <!-- Enterprise Plan -->
-          <div class="pricing-card">
-            <h3 class="plan-title">Agency / SaaS</h3>
-            <p class="plan-desc">For agencies, marketing consultancies, and resellers.</p>
-            <div class="price-box">
-              <span class="price-currency">$</span>
-              <span class="price-val" id="price-enterprise">149</span>
-              <span class="price-period">/month</span>
+                @if (Route::has('user_register'))
+                  <a href="{{ route('user_register') }}" class="btn btn-primary" style="width: 100%;">Get Pro Scale</a>
+                @else
+                  <a href="{{ route('login') }}" class="btn btn-primary" style="width: 100%;">Get Started</a>
+                @endif
+              @endauth
             </div>
-            <ul class="pricing-features-list">
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Everything in Pro Scale</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span><strong>Multi-Tenant Client Portals</strong></span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Client Subscription Billing (Stripe)</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>CSV Audience Marketplace Access</span>
-              </li>
-              <li class="pricing-feature-row">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Priority 24/7 Dedicated Support</span>
-              </li>
-            </ul>
-            <a href="{{ Route::has('contact.create') ? route('contact.create') : url('/contact') }}" class="btn btn-outline" style="width: 100%;">Contact Enterprise</a>
+
+            <!-- Enterprise Plan -->
+            <div class="pricing-card">
+              <h3 class="plan-title">Agency / SaaS</h3>
+              <p class="plan-desc">For agencies, marketing consultancies, and resellers.</p>
+              <div class="price-box">
+                <span class="price-currency">$</span>
+                <span class="price-val" id="price-enterprise">149</span>
+                <span class="price-period">/month</span>
+              </div>
+              <ul class="pricing-features-list">
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Everything in Pro Scale</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Multi-Tenant Client Portals</strong></span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Client Subscription Billing (Stripe)</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>CSV Audience Marketplace Access</span>
+                </li>
+                <li class="pricing-feature-row">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Priority 24/7 Dedicated Support</span>
+                </li>
+              </ul>
+              <a href="{{ Route::has('contact.create') ? route('contact.create') : url('/contact') }}" class="btn btn-outline" style="width: 100%;">Contact Enterprise</a>
+            </div>
           </div>
-        </div>
+        @endif
       </div>
     </section>
 

@@ -1554,17 +1554,24 @@ function convertPrice($price)
 //format the Price
 function formatPrice($price)
 {
-    $sc = session('currency');
-    if ($sc != null) {
-        $id = $sc;
-    } else {
-        $id = (int) getSystemSetting('default_currencies')->value;
+    try {
+        $sc = session('currency');
+        if ($sc != null) {
+            $id = $sc;
+        } else {
+            $id = (int) getSystemSetting('default_currencies')->value;
+        }
+
+        $currency = Currency::find($id);
+        if ($currency) {
+            $p = $price * $currency->rate;
+            return $currency->align == 0 ? number_format($p, 2) . $currency->symbol : $currency->symbol . number_format($p, 2);
+        }
+    } catch (\Throwable $th) {
+        // Fallback if db setting not found
     }
 
-    $currency = Currency::find($id);
-    $p = $price * $currency->rate;
-
-    return $currency->align == 0 ? number_format($p, 2) . $currency->symbol : $currency->symbol . number_format($p, 2);
+    return '$' . number_format((float)$price, 2);
 }
 
 //format the Price
@@ -2495,9 +2502,13 @@ function smslLeft()
  */
 function displaySubscriptions()
 {
-    return SubscriptionPlan::where('status', 1)
-        ->where('display', 1)
-        ->get();
+    try {
+        return SubscriptionPlan::where('status', 1)
+            ->where('display', 1)
+            ->get();
+    } catch (\Throwable $th) {
+        return collect([]);
+    }
 }
 
 function subscriptions($name)
